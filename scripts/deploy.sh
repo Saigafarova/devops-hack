@@ -53,6 +53,11 @@ kubectl apply --server-side --force-conflicts \
 
 
 echo "=== 5. Установка Envoy Gateway ==="
+if [ ! -d "gateway-helm" ]; then
+  echo "Скачиваем чарт Envoy Gateway v1.9.2..."
+  helm pull oci://docker.io/envoyproxy/gateway-helm --version v1.9.2 --untar
+fi
+
 if ! helm list -n envoy-gateway-system 2>/dev/null | grep -q "^eg"; then
   helm install eg ./gateway-helm \
     -n envoy-gateway-system \
