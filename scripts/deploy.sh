@@ -57,14 +57,13 @@ if ! helm list -n envoy-gateway-system 2>/dev/null | grep -q "^eg"; then
   helm install eg ./gateway-helm \
     -n envoy-gateway-system \
     --create-namespace \
-    --skip-crds \
     --set deployment.envoyGateway.image.repository=envoyproxy/gateway \
     --set deployment.envoyGateway.image.tag=v1.9.2 \
     --set deployment.envoyGateway.imagePullPolicy=IfNotPresent
 fi
 
-
-sleep 10
+echo "Ждём регистрацию CRD Envoy Gateway"
+sleep 15
 
 
 echo "=== 6. Создаём EnvoyProxy (без digest) ==="
@@ -78,6 +77,8 @@ spec:
   provider:
     type: Kubernetes
     kubernetes:
+      envoyService:
+        type: NodePort
       envoyDeployment:
         container:
           image: docker.io/envoyproxy/envoy:distroless-v1.39.1
@@ -130,6 +131,18 @@ kubectl apply -f ${LOGGING_DIR}/filebeat-rbac.yaml
 kubectl apply -f ${LOGGING_DIR}/filebeat-config.yaml
 kubectl apply -f ${LOGGING_DIR}/filebeat-daemonset.yaml
 
+
+
+echo "=== Ожидание PROGRAMMED: True ==="
+for i in {1..60}; do
+  PROGRAMMED=$(kubectl get gateway my-gateway -o jsonpath='{.status.conditions[?(@.type=="Programmed")].status}' 2>/dev/null || echo "")
+  if [ "$PROGRAMMED" = "True" ]; then
+    echo "Gateway PROGRAMMED: True"
+    break
+  fi
+  echo "Ожидание... ($i/60)"
+  sleep 5
+done
 
 echo "=== 12. Ожидание готовности подов ==="
 kubectl wait --timeout=180s --for=condition=Ready pod -l app=nginx || true
