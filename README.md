@@ -44,7 +44,7 @@ Kubernetes-манифесты | `k8s/`
 [Пользователь]
       |
       v
-[NodePort :31100]
+[NodePort]
       |
       v
 [Envoy Gateway] --- HTTPRoute ---> [nginx-service] ---> [Nginx Pods x2]
@@ -105,8 +105,8 @@ chmod +x scripts/deploy.sh
 
 ## Порты
 
-- `31100` — NodePort для Gateway (трафик к Nginx).
-- `9090` — Prometheus UI (через port-forward).
+- NodePort для Gateway — назначается автоматически (диапазон 30000–32767). Узнать: `kubectl get svc -n envoy-gateway-system -l gateway.envoyproxy.io/owning-gateway-name=my-gateway`.
+- `9090` — Prometheus UI (через `kubectl port-forward`).
 - `80` — порт Nginx внутри кластера.
 
 ## Зависимости
@@ -158,11 +158,29 @@ kubectl get httproute
 ```bash
 kubectl get nodes -o wide
 kubectl get svc -n envoy-gateway-system -l gateway.envoyproxy.io/owning-gateway-name=my-gateway
+```
 
+Узнать NodePort:
+
+```
+NODEPORT=$(kubectl get svc -n envoy-gateway-system \
+  -l gateway.envoyproxy.io/owning-gateway-name=my-gateway \
+  -o jsonpath='{.items[0].spec.ports[0].nodePort}')
+```
+
+Узнать IP ноды:
+
+```
+NODE_IP=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
+```
+
+Проверить доступ:
+
+```
 kubectl run test-curl --rm -it \
   --image=busybox --restart=Never \
   --image-pull-policy=IfNotPresent \
-  -- wget -qO- http://<IP-ноды>:<NodePort>/
+  -- wget -qO- http://${NODE_IP}:${NODEPORT}/
 ```
 
 Ожидаемо: HTML-страница «Welcome to nginx!».
